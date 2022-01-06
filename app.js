@@ -54,7 +54,6 @@ app.get("/", (req, res) => {
 const client = new Client({
   restartOnAuthFail: true,
   puppeteer: {
-    executablePath: '/app/.chromedriver/bin/chromedriver',
     headless: true,
     args: [
       "--no-sandbox",
