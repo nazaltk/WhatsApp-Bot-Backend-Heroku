@@ -300,8 +300,8 @@ app.post(
   async (req, res) => {
     try {
       console.log(req.body);
-      if (!req.body.number || !req.body.message) {
-        return res.status(200).json({
+      if (!req.body.number || !req.body.message || !req.body.type) {
+        return res.status(400).json({
           status: false,
           message: "Invalid Input"
         });
@@ -339,7 +339,7 @@ app.post(
       });
 
     } catch (e) {
-      return res.status(200).json({
+      return res.status(400).json({
         status: false,
         message: e.message
       });
@@ -397,13 +397,16 @@ app.post("/send-media", async (req, res) => {
         });
       })
       .catch(err => {
-        res.status(200).json({
+        res.status(400).json({
           status: false,
           response: err
         });
       });
   } catch (e) {
-    console.log(e)
+    return res.status(400).json({
+      status: false,
+      message: e.message
+    });
   }
 });
 
