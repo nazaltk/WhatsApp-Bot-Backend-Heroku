@@ -1,0 +1,7 @@
+{
+    "name": "WhatsApp API",
+    "description": "Fully Customizable WhatsApp API",
+    "repository": "https://github.com/nazaltk/WhatsApp-Bot-Backend-Heroku",
+    "logo": "https://node-js-sample.herokuapp.com/node.png",
+    "keywords": ["whatsapp", "whatsapp api", "bailey api"]
+  }
