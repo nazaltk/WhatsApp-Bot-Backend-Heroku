@@ -66,11 +66,13 @@ app.get("/", (req, res) => {
   });
 });
 
+var client;
+
 setTimeout(() => {
   console.log("Starting")
   console.log(sessionCfg)
 
-  const client = new Client({
+  client = new Client({
     restartOnAuthFail: true,
     puppeteer: {
       headless: true,
