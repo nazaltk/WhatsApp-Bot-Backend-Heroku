@@ -91,91 +91,7 @@ client.on("message", async msg => {
       console.log(msg.body + " : " + templateDataItem.length);
       if (templateDataItem.length > 0) {
         for (var j = 0; j < templateDataItem.length; j++) {
-          if (templateDataItem[j].type === "Text") {
-            client.sendMessage(msg.from, templateDataItem[j].message);
-          } else if (templateDataItem[j].type === "Button") {
-            var message = templateDataItem[j].message;
-            var buttons = message.buttons.map(button => {
-              return { body: button };
-            });
-            let button = new Buttons(
-              message.body,
-              buttons,
-              message.title,
-              message.footer
-            );
-            client.sendMessage(msg.from, button);
-          } else if (templateDataItem[j].type === "List") {
-            var message = templateDataItem[j].message;
-            let sections = message.section.map(sec => {
-              return { title: sec.title, rows: sec.rows };
-            });
-            let list = new List(
-              message.body,
-              message.btnText,
-              sections,
-              message.title,
-              message.footer
-            );
-            client.sendMessage(msg.from, list);
-          } else if (templateDataItem[j].type === "Location") {
-            var message = templateDataItem[j].message;
-            var location = new Location(
-              message.lat,
-              message.long,
-              message.title
-            );
-            client.sendMessage(msg.from, location);
-          } else if (templateDataItem[j].type === "File") {
-            var message = templateDataItem[j].message;
-            for (var i = 0; i < message.length; i++) {
-              let mimetype;
-              const attachment = await axios
-                .get(message[i].fileUrl, {
-                  responseType: "arraybuffer"
-                })
-                .then(response => {
-                  mimetype = response.headers["content-type"];
-                  return response.data.toString("base64");
-                });
-
-              let isVideo = mimetype.indexOf("video") >= 0;
-              console.log(mimetype);
-              console.log(attachment);
-              console.log(message[i].caption);
-
-              const media = new MessageMedia(
-                mimetype,
-                attachment,
-                message[i].caption
-              );
-
-              client.sendMessage(msg.from, media, {
-                caption: message[i].caption,
-                sendMediaAsDocument: isVideo
-              });
-            }
-          } else if (templateDataItem[j].type === "Audio") {
-            var message = templateDataItem[j].message;
-            for (var i = 0; i < message.length; i++) {
-              let mimetype;
-              const attachment = await axios
-                .get(message[i].fileUrl, {
-                  responseType: "arraybuffer"
-                })
-                .then(response => {
-                  mimetype = response.headers["content-type"];
-                  return response.data.toString("base64");
-                });
-
-              const media = new MessageMedia(mimetype, attachment, "Media");
-
-              client.sendMessage(msg.from, media, {
-                caption: message[i].caption,
-                sendAudioAsVoice: true
-              });
-            }
-          }
+          findMessageAndSend(msg, templateDataItem[j]);
         }
       }
     }
@@ -184,6 +100,101 @@ client.on("message", async msg => {
     console.log(err);
   }
 });
+
+
+const findMessageAndSend = async function(msg, templateDataItem){
+  if (typeof templateDataItem.message === 'string' || templateDataItem.message instanceof String){
+    templateDataItem.message = templateDataItem.message.replaceAll("\\n", "\n");
+  } else if (typeof templateDataItem.message.body === 'string' || templateDataItem.message.body instanceof String){
+    templateDataItem.message.body = templateDataItem.message.body.replaceAll("\\n", "\n");
+  }
+
+  if (templateDataItem.type === "Text") {
+    client.sendMessage(msg.from, templateDataItem.message);
+  } else if (templateDataItem.type === "Button") {
+    var message = templateDataItem.message;
+    var buttons = message.buttons.map(button => {
+      return { body: button };
+    });
+    let button = new Buttons(
+      message.body,
+      buttons,
+      message.title,
+      message.footer
+    );
+    client.sendMessage(msg.from, button);
+  } else if (templateDataItem.type === "List") {
+    var message = templateDataItem.message;
+    let sections = message.section.map(sec => {
+      return { title: sec.title, rows: sec.rows };
+    });
+    let list = new List(
+      message.body,
+      message.btnText,
+      sections,
+      message.title,
+      message.footer
+    );
+    client.sendMessage(msg.from, list);
+  } else if (templateDataItem.type === "Location") {
+    var message = templateDataItem.message;
+    var location = new Location(
+      message.lat,
+      message.long,
+      message.title
+    );
+    client.sendMessage(msg.from, location);
+  } else if (templateDataItem.type === "File") {
+    var message = templateDataItem.message;
+    for (var i = 0; i < message.length; i++) {
+      let mimetype;
+      const attachment = await axios
+        .get(message[i].fileUrl, {
+          responseType: "arraybuffer"
+        })
+        .then(response => {
+          mimetype = response.headers["content-type"];
+          return response.data.toString("base64");
+        });
+
+      let isVideo = mimetype.indexOf("video") >= 0;
+      console.log(mimetype);
+      console.log(attachment);
+      console.log(message[i].caption);
+
+      const media = new MessageMedia(
+        mimetype,
+        attachment,
+        message[i].caption
+      );
+
+      client.sendMessage(msg.from, media, {
+        caption: message[i].caption,
+        sendMediaAsDocument: isVideo
+      });
+    }
+  } else if (templateDataItem.type === "Audio") {
+    var message = templateDataItem.message;
+    for (var i = 0; i < message.length; i++) {
+      let mimetype;
+      const attachment = await axios
+        .get(message[i].fileUrl, {
+          responseType: "arraybuffer"
+        })
+        .then(response => {
+          mimetype = response.headers["content-type"];
+          return response.data.toString("base64");
+        });
+
+      const media = new MessageMedia(mimetype, attachment, "Media");
+
+      client.sendMessage(msg.from, media, {
+        caption: message[i].caption,
+        sendAudioAsVoice: true
+      });
+    }
+  }
+}
 
 const getTemplateData = async function(msg) {
   const response = await axios.get(TEMPLATE_URL);
@@ -273,8 +284,6 @@ try{
     }
 
     const number = phoneNumberFormatter(req.body.number + "");
-    const message = req.body.message.replaceAll("\\n", "\n");
-    console.log(message);
 
     const isRegisteredNumber = await checkRegisteredNumber(number);
 
@@ -285,20 +294,16 @@ try{
       });
     }
 
-    client
-      .sendMessage(number, message)
-      .then(response => {
-        res.status(200).json({
-          status: true,
-          response: response
-        });
-      })
-      .catch(err => {
-        res.status(200).json({
-          status: false,
-          response: err
-        });
-      });
+    var user = {};
+    user.from = number;
+
+    await findMessageAndSend(user, req.body);
+
+    return res.status(200).json({
+      status: true,
+      message: "Success"
+    });
+
 }catch(e){
 	console.log(e)
 }
