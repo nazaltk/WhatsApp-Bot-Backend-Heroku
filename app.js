@@ -102,10 +102,10 @@ client.on("message", async msg => {
 });
 
 
-const findMessageAndSend = async function(msg, templateDataItem){
-  if (typeof templateDataItem.message === 'string' || templateDataItem.message instanceof String){
+const findMessageAndSend = async function (msg, templateDataItem) {
+  if (typeof templateDataItem.message === 'string' || templateDataItem.message instanceof String) {
     templateDataItem.message = templateDataItem.message.replaceAll("\\n", "\n");
-  } else if (typeof templateDataItem.message.body === 'string' || templateDataItem.message.body instanceof String){
+  } else if (typeof templateDataItem.message.body === 'string' || templateDataItem.message.body instanceof String) {
     templateDataItem.message.body = templateDataItem.message.body.replaceAll("\\n", "\n");
   }
 
@@ -196,7 +196,7 @@ const findMessageAndSend = async function(msg, templateDataItem){
   }
 }
 
-const getTemplateData = async function(msg) {
+const getTemplateData = async function (msg) {
   const response = await axios.get(TEMPLATE_URL);
 
   return response.data;
@@ -205,13 +205,14 @@ const getTemplateData = async function(msg) {
 client
   .initialize()
   .then(ss => {
-    console.log("Success");})
+    console.log("Success");
+  })
   .catch(err => {
     console.log(err);
   });
 
 // Socket IO
-io.on("connection", function(socket) {
+io.on("connection", function (socket) {
   socket.emit("message", "Connecting...");
 
   client.on("qr", qr => {
@@ -232,20 +233,20 @@ io.on("connection", function(socket) {
     socket.emit("message", "Whatsapp is authenticated!");
     console.log("AUTHENTICATED", session);
     sessionCfg = session;
-    fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function(err) {
+    fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
       if (err) {
         console.error(err);
       }
     });
   });
 
-  client.on("auth_failure", function(session) {
+  client.on("auth_failure", function (session) {
     socket.emit("message", "Auth failure, restarting...");
   });
 
   client.on("disconnected", reason => {
     socket.emit("message", "Whatsapp is disconnected!");
-    fs.unlinkSync(SESSION_FILE_PATH, function(err) {
+    fs.unlinkSync(SESSION_FILE_PATH, function (err) {
       if (err) return console.log(err);
       console.log("Session file deleted!");
     });
@@ -254,7 +255,7 @@ io.on("connection", function(socket) {
   });
 });
 
-const checkRegisteredNumber = async function(number) {
+const checkRegisteredNumber = async function (number) {
   const isRegistered = await client.isRegisteredUser(number);
   return isRegistered;
 };
@@ -264,113 +265,116 @@ app.post(
   "/send-message",
   [body("number").notEmpty(), body("message").notEmpty()],
   async (req, res) => {
-try{
-    console.log(req.body);
-    if (!req.body.number || !req.body.message) {
+    try {
+      console.log(req.body);
+      if (!req.body.number || !req.body.message) {
+        return res.status(200).json({
+          status: false,
+          message: "Invalid Input"
+        });
+      }
+      const errors = validationResult(req).formatWith(({ msg }) => {
+        return msg;
+      });
+
+      if (!errors.isEmpty()) {
+        return res.status(422).json({
+          status: false,
+          message: errors.mapped()
+        });
+      }
+
+      const number = phoneNumberFormatter(req.body.number + "");
+
+      const isRegisteredNumber = await checkRegisteredNumber(number);
+
+      if (!isRegisteredNumber) {
+        return res.status(200).json({
+          status: false,
+          message: "The number is not registered"
+        });
+      }
+
+      var user = {};
+      user.from = number;
+
+      await findMessageAndSend(user, req.body);
+
+      return res.status(200).json({
+        status: true,
+        message: "Success"
+      });
+
+    } catch (e) {
       return res.status(200).json({
         status: false,
-        message: "Invalid Input"
+        message: e.message
       });
     }
-    const errors = validationResult(req).formatWith(({ msg }) => {
-      return msg;
-    });
-
-    if (!errors.isEmpty()) {
-      return res.status(422).json({
-        status: false,
-        message: errors.mapped()
-      });
-    }
-
-    const number = phoneNumberFormatter(req.body.number + "");
-
-    const isRegisteredNumber = await checkRegisteredNumber(number);
-
-    if (!isRegisteredNumber) {
-      return res.status(200).json({
-        status: false,
-        message: "The number is not registered"
-      });
-    }
-
-    var user = {};
-    user.from = number;
-
-    await findMessageAndSend(user, req.body);
-
-    return res.status(200).json({
-      status: true,
-      message: "Success"
-    });
-
-}catch(e){
-	console.log(e)
-}
   }
 );
 
 // Send media
 app.post("/send-media", async (req, res) => {
-try{
-  console.log(req.body);
-  if (
-    !req.body.number ||
-    !req.body.caption ||
-    !req.body.file ||
-    !req.body.file
-  ) {
-    return res.status(200).json({
-      status: false,
-      message: "Invalid Input"
-    });
-  }
-
-  const number = phoneNumberFormatter(req.body.number + "");
-  const caption = req.body.caption;
-  const fileUrl = req.body.file;
-  const isAudio = req.body.audio;
-  const isVideo = req.body.video;
-
-  // const media = MessageMedia.fromFilePath('./image-example.png');
-  // const file = req.files.file;
-  // const media = new MessageMedia(file.mimetype, file.data.toString('base64'), file.name);
-  let mimetype;
-  const attachment = await axios
-    .get(fileUrl, {
-      responseType: "arraybuffer"
-    })
-    .then(response => {
-      mimetype = response.headers["content-type"];
-      return response.data.toString("base64");
-    });
-
-  const media = new MessageMedia(mimetype, attachment, "Media");
-
-  client
-    .sendMessage(number, media, {
-      caption: caption,
-      sendAudioAsVoice: isAudio,
-      sendMediaAsDocument: isVideo
-    })
-    .then(response => {
-      res.status(200).json({
-        status: true,
-        response: response
-      });
-    })
-    .catch(err => {
-      res.status(200).json({
+  try {
+    console.log(req.body);
+    if (
+      !req.body.number ||
+      !req.body.caption ||
+      !req.body.file ||
+      !req.body.file
+    ) {
+      return res.status(200).json({
         status: false,
-        response: err
+        message: "Invalid Input"
       });
-    });
-}catch(e){
-	console.log(e)
-}
+    }
+
+    const number = phoneNumberFormatter(req.body.number + "");
+    const caption = req.body.caption;
+    const fileUrl = req.body.file;
+    const isAudio = req.body.audio;
+    const isVideo = req.body.video;
+
+    // const media = MessageMedia.fromFilePath('./image-example.png');
+    // const file = req.files.file;
+    // const media = new MessageMedia(file.mimetype, file.data.toString('base64'), file.name);
+    let mimetype;
+    const attachment = await axios
+      .get(fileUrl, {
+        responseType: "arraybuffer"
+      })
+      .then(response => {
+        mimetype = response.headers["content-type"];
+        return response.data.toString("base64");
+      });
+
+    const media = new MessageMedia(mimetype, attachment, "Media");
+
+    client
+      .sendMessage(number, media, {
+        caption: caption,
+        sendAudioAsVoice: isAudio,
+        sendMediaAsDocument: isVideo
+      })
+      .then(response => {
+        res.status(200).json({
+          status: true,
+          response: response
+        });
+      })
+      .catch(err => {
+        res.status(200).json({
+          status: false,
+          response: err
+        });
+      });
+  } catch (e) {
+    console.log(e)
+  }
 });
 
-const findGroupByName = async function(name) {
+const findGroupByName = async function (name) {
   const group = await client.getChats().then(chats => {
     return chats.find(
       chat => chat.isGroup && chat.name.toLowerCase() == name.toLowerCase()
@@ -487,6 +491,6 @@ app.post("/clear-message", [body("number").notEmpty()], async (req, res) => {
     });
 });
 
-server.listen(port, function() {
+server.listen(port, function () {
   console.log("App running on *: " + port);
 });
