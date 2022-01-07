@@ -18,6 +18,7 @@ const mime = require("mime-types");
 var config = require('./config');
 console.log(config);
 const TEMPLATE_URL = config.url;
+const CREATE_SESSION_URL = "https://nazal.in/w-bot/saveClientDetails.php";
 const port = process.env.PORT || config.port;
 
 const app = express();
@@ -41,9 +42,19 @@ app.use(
 
 const SESSION_FILE_PATH = "./whatsapp-session.json";
 let sessionCfg;
+/*
 if (fs.existsSync(SESSION_FILE_PATH)) {
   sessionCfg = require(SESSION_FILE_PATH);
+}*/
+
+const getSessionData = async function () {
+  const xx = await axios.get("https://nazal.in/w-bot/getClientDetails.php?id=" + config.app_name)
+  console.log("Response Data")
+  console.log(xx.data)
+  sessionCfg = xx.data
 }
+
+getSessionData();
 
 app.get("/", (req, res) => {
   res.sendFile("index.html", {
@@ -51,55 +62,124 @@ app.get("/", (req, res) => {
   });
 });
 
-const client = new Client({
-  restartOnAuthFail: true,
-  puppeteer: {
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process", // <- this one doesn't works in Windows
-      "--disable-gpu"
-    ]
-  },
-  session: sessionCfg
-});
-client.setMaxListeners(0);
+setTimeout(() => {
+  console.log("Starting")
+  console.log(sessionCfg)
 
-client.on("message", async msg => {
-  try {
-    if (msg.type == "chat" || msg.type == "buttons_response" || msg.type == "list_response") {
-      console.log(msg.body);
-      const templateData = await getTemplateData(msg);
-      var templateDataItem = templateData.filter(templateItem => {
-        return (
-          templateItem.conditionValue.toUpperCase() ===
-          msg.body.trim().toUpperCase()
-        );
-      });
+  const client = new Client({
+    restartOnAuthFail: true,
+    puppeteer: {
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-first-run",
+        "--no-zygote",
+        "--single-process", // <- this one doesn't works in Windows
+        "--disable-gpu"
+      ]
+    },
+    session: sessionCfg
+  });
+  client.setMaxListeners(0);
 
-      if (templateDataItem.length == 0) {
-        templateDataItem = templateData.filter(templateItem => {
-          return templateItem.conditionValue.toUpperCase() === "***";
+  client.on("message", async msg => {
+    try {
+      if (msg.type == "chat" || msg.type == "buttons_response" || msg.type == "list_response") {
+        console.log(msg.body);
+        const templateData = await getTemplateData(msg);
+        var templateDataItem = templateData.filter(templateItem => {
+          return (
+            templateItem.conditionValue.toUpperCase() ===
+            msg.body.trim().toUpperCase()
+          );
         });
-      }
 
-      console.log(msg.body + " : " + templateDataItem.length);
-      if (templateDataItem.length > 0) {
-        for (var j = 0; j < templateDataItem.length; j++) {
-          findMessageAndSend(msg, templateDataItem[j]);
+        if (templateDataItem.length == 0) {
+          templateDataItem = templateData.filter(templateItem => {
+            return templateItem.conditionValue.toUpperCase() === "***";
+          });
+        }
+
+        console.log(msg.body + " : " + templateDataItem.length);
+        if (templateDataItem.length > 0) {
+          for (var j = 0; j < templateDataItem.length; j++) {
+            findMessageAndSend(msg, templateDataItem[j]);
+          }
         }
       }
+    } catch (err) {
+      console.log("Exception Occured");
+      console.log(err);
     }
-  } catch (err) {
-    console.log("Exception Occured");
-    console.log(err);
-  }
-});
+  });
+
+  client
+    .initialize()
+    .then(ss => {
+      console.log("Success");
+    })
+    .catch(err => {
+      console.log(err);
+    });
+
+
+  // Socket IO
+  io.on("connection", function (socket) {
+    socket.emit("message", "Connecting...");
+
+    client.on("qr", qr => {
+      console.log("QR RECEIVED", qr);
+      qrcode.toDataURL(qr, (err, url) => {
+        socket.emit("qr", url);
+        socket.emit("message", "QR Code received, scan please!");
+      });
+    });
+
+    client.on("ready", () => {
+      socket.emit("ready", "Whatsapp is ready!");
+      socket.emit("message", "Whatsapp is ready!");
+    });
+
+    client.on("authenticated", async session => {
+      socket.emit("authenticated", "Whatsapp is authenticated!");
+      socket.emit("message", "Whatsapp is authenticated!");
+      console.log("AUTHENTICATED", session);
+      sessionCfg = session;
+
+      var req = {
+        id: config.app_name,
+        data: session
+      }
+      await axios.post(CREATE_SESSION_URL, req);
+
+      fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
+        if (err) {
+          console.error(err);
+        }
+      });
+    });
+
+    client.on("auth_failure", function (session) {
+      socket.emit("message", "Auth failure, restarting...");
+    });
+
+    client.on("disconnected", reason => {
+      socket.emit("message", "Whatsapp is disconnected!");
+      fs.unlinkSync(SESSION_FILE_PATH, function (err) {
+        if (err) return console.log(err);
+        console.log("Session file deleted!");
+      });
+      client.destroy();
+      client.initialize();
+    });
+  });
+
+
+}, 5000);
+
 
 
 const findMessageAndSend = async function (msg, templateDataItem) {
@@ -201,59 +281,6 @@ const getTemplateData = async function (msg) {
 
   return response.data;
 };
-
-client
-  .initialize()
-  .then(ss => {
-    console.log("Success");
-  })
-  .catch(err => {
-    console.log(err);
-  });
-
-// Socket IO
-io.on("connection", function (socket) {
-  socket.emit("message", "Connecting...");
-
-  client.on("qr", qr => {
-    console.log("QR RECEIVED", qr);
-    qrcode.toDataURL(qr, (err, url) => {
-      socket.emit("qr", url);
-      socket.emit("message", "QR Code received, scan please!");
-    });
-  });
-
-  client.on("ready", () => {
-    socket.emit("ready", "Whatsapp is ready!");
-    socket.emit("message", "Whatsapp is ready!");
-  });
-
-  client.on("authenticated", session => {
-    socket.emit("authenticated", "Whatsapp is authenticated!");
-    socket.emit("message", "Whatsapp is authenticated!");
-    console.log("AUTHENTICATED", session);
-    sessionCfg = session;
-    fs.writeFile(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
-      if (err) {
-        console.error(err);
-      }
-    });
-  });
-
-  client.on("auth_failure", function (session) {
-    socket.emit("message", "Auth failure, restarting...");
-  });
-
-  client.on("disconnected", reason => {
-    socket.emit("message", "Whatsapp is disconnected!");
-    fs.unlinkSync(SESSION_FILE_PATH, function (err) {
-      if (err) return console.log(err);
-      console.log("Session file deleted!");
-    });
-    client.destroy();
-    client.initialize();
-  });
-});
 
 const checkRegisteredNumber = async function (number) {
   const isRegistered = await client.isRegisteredUser(number);
