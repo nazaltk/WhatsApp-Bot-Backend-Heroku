@@ -42,6 +42,8 @@ app.use(
 
 const SESSION_FILE_PATH = "./whatsapp-session.json";
 let sessionCfg;
+
+console.log(process.env)
 /*
 if (fs.existsSync(SESSION_FILE_PATH)) {
   sessionCfg = require(SESSION_FILE_PATH);
