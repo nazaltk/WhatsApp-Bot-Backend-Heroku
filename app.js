@@ -53,7 +53,7 @@ const getSessionData = async function () {
   const xx = await axios.get("https://nazal.in/w-bot/getClientDetails.php?id=" + config.app_name)
   console.log("Response Data")
   console.log(xx.data)
-  if(xx.data.indexOf("Unable") >= 0){
+  if(xx.data.WABrowserId != null){
     sessionCfg = xx.data
   }
 }
