@@ -322,7 +322,7 @@ app.post(
       const isRegisteredNumber = await checkRegisteredNumber(number);
 
       if (!isRegisteredNumber) {
-        return res.status(200).json({
+        return res.status(400).json({
           status: false,
           message: "The number is not registered"
         });
@@ -368,6 +368,15 @@ app.post("/send-media", async (req, res) => {
     const fileUrl = req.body.file;
     const isAudio = req.body.audio;
     const isVideo = req.body.video;
+
+    const isRegisteredNumber = await checkRegisteredNumber(number);
+
+      if (!isRegisteredNumber) {
+        return res.status(400).json({
+          status: false,
+          message: "The number is not registered"
+        });
+      }
 
     // const media = MessageMedia.fromFilePath('./image-example.png');
     // const file = req.files.file;
